@@ -245,6 +245,11 @@ public class Skeleton<T>
         return address.getAddress();
     }
     
+
+    public boolean isRunning(){
+        return condition;
+    }
+
     private class SkeletonListen extends Thread
     {
         public void run()

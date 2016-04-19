@@ -53,6 +53,8 @@ public abstract class Stub
         if(c == null || skeleton == null) throw new NullPointerException("parameters cannot be null");
         if(!c.isInterface()) throw new Error("c must be interface!");
         if(!isRemoteInterface(c)) throw new Error("c must be remote interface!");
+        if (!skeleton.isRunning())
+            throw new IllegalStateException();
         InetSocketAddress address = new InetSocketAddress(skeleton.getAddress(), skeleton.getPort());
         return (T) java.lang.reflect.Proxy.newProxyInstance(c.getClassLoader(), new Class[] { c }, new InvocationRealization(address, c));
     }
@@ -93,6 +95,8 @@ public abstract class Stub
         if(c == null || skeleton == null || hostname == null) throw new NullPointerException("parameters cannot be null");
         if(!c.isInterface()) throw new Error("c must be interface!");
         if(!isRemoteInterface(c)) throw new Error("c must be remote interface!");
+        if (!skeleton.isRunning())
+            throw new IllegalStateException();
         InetSocketAddress address = new InetSocketAddress(hostname, skeleton.getPort());
         return (T) java.lang.reflect.Proxy.newProxyInstance(c.getClassLoader(), new Class[] { c }, new InvocationRealization(address, c));
     }
