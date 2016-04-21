@@ -1,4 +1,4 @@
-#docker build -t myubuntu -f Dockerfile .
+docker build -t myubuntu -f Dockerfile .
 docker build -t volume_image -f Dockervolume .
 docker create -v /data --name volume_contanier volume_image /bin/true
 docker build -t client_image -f Dockerclient .
