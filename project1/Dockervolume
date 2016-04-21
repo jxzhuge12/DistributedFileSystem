@@ -1,0 +1,7 @@
+FROM ubuntu
+RUN mkdir /rmi
+RUN mkdir /test
+COPY ./rmi /rmi
+COPY ./test /test
+VOLUME /rmi
+VOLUME /test

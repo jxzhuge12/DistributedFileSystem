@@ -1,0 +1,3 @@
+FROM myubuntu
+COPY ./server.java /server.java
+COPY ./catserver.java /catserver.java
