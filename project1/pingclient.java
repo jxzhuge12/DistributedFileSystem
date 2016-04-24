@@ -1,7 +1,7 @@
 import java.net.*;
 import rmi.*;
 
-public class catclient
+public class pingclient
 {
     public static void main(String args[])
     {

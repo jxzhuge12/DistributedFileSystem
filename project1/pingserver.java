@@ -1,6 +1,6 @@
 import rmi.*;
 
-public class catserver implements server
+public class pingserver implements server
 {
     public String ping(int idNumber) throws RMIException
     {
@@ -9,7 +9,7 @@ public class catserver implements server
 
     public static void main(String args[])
     {
-        catserver ca = new catserver();
+        pingserver ca = new pingserver();
         Skeleton<server> skeleton = new Skeleton(server.class, ca);
         try
         {
