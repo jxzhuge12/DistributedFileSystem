@@ -43,3 +43,7 @@ running unit tests to put the unit tests logically in the same package as the
 code they are testing.
 
 The class test.SelfTest runs some basic self-tests on the testing library.
+
+DOCKER
+Run clean.sh to stop all running contanier.
+Run run.sh and it will run all the process automatically
