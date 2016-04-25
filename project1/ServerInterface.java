@@ -1,6 +1,6 @@
 import rmi.*;
 
-public interface server
+public interface ServerInterface
 {
     public String ping(int idNumber) throws RMIException;
 }

@@ -1,3 +1,4 @@
 FROM myubuntu
-COPY ./server.java /server.java
-COPY ./pingclient.java /pingclient.java
+COPY ./ServerInterface.java /ServerInterface.java
+COPY ./FactoryInterface.java /FactoryInterface.java
+COPY ./PingPongClient.java /PingPongClient.java
