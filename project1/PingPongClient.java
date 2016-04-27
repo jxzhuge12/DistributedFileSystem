@@ -22,6 +22,7 @@ public class PingPongClient
             System.out.println(ping_resut);
             ping_resut = remote_server.ping(777);
             System.out.println(ping_resut);
+            remote_factory.stopPingServer();
         }catch(RMIException e)
         {
             e.printStackTrace();
