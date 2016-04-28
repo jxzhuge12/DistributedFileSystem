@@ -63,6 +63,7 @@ public class InvocationRealization implements InvocationHandler, Serializable
                 ObjectInputStream inStream = new ObjectInputStream(socket.getInputStream());
                 suc = (boolean)inStream.readObject();
                 ret = inStream.readObject();
+                socket.close();
             }
             catch(Throwable e)
             { 

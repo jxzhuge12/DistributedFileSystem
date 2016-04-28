@@ -55,7 +55,7 @@ public class Skeleton<T>
         this.c = c;
         this.server = server;
         this.address = null;
-        listener = new SkeletonListen();
+        //listener = new SkeletonListen();
     }
 
     /** Creates a <code>Skeleton</code> with the given initial server address.
@@ -84,7 +84,7 @@ public class Skeleton<T>
         this.c = c;
         this.server = server;
         this.address = address;
-        listener = new SkeletonListen();
+        //listener = new SkeletonListen();
     }
 
     private boolean isRemoteInterface(Class<T> c)
@@ -189,7 +189,15 @@ public class Skeleton<T>
                 throw new RMIException("Failed to create serversocket!"); 
             }
             
-            listener.start();
+            try
+            {
+                listener = new SkeletonListen();
+                listener.start();
+            }
+            catch(Exception e)
+            {
+                System.out.println(e);
+            }
         }
         else throw new RMIException("Listening socket has already created!");
     }
@@ -220,6 +228,7 @@ public class Skeleton<T>
                 serversocket.close();
             }
             catch(IOException e){  }
+            stopped(null);
         }
     }
     
