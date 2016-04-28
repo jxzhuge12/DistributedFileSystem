@@ -20,24 +20,15 @@ public class InvocationRealization implements InvocationHandler, Serializable
     
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable
     {
-        if(method.getName().equals("equals"))
         {
-            if(args.length != 1 || args[0] == null) return false;
+            if(args[0] == null) return false;
             if(args[0] == null) return (Object) false;
             if(!Proxy.isProxyClass(args[0].getClass())) return false;
             InvocationRealization ih = (InvocationRealization)Proxy.getInvocationHandler(args[0]);
             return (Object) (c.equals(ih.c) && address.getAddress().equals(ih.address.getAddress()) && address.getPort() == ih.address.getPort());
         }
-        else if(method.getName().equals("hashCode"))
-        {
-            if(args != null) throw new TestFailed("error");
-            return (Object) ((17 + c.hashCode()) * 13 + address.hashCode());
-        }
-        else if(method.getName().equals("toString"))
-        {
-            if(args != null) throw new TestFailed("error");
-            return (Object) (c.toString() + address.toString());
-        }
+        else if(method.getName().equals("hashCode") && args == null) return (Object) ((17 + c.hashCode()) * 13 + address.hashCode());
+        else if(method.getName().equals("toString") && args == null) return (Object) (c.toString() + address.toString());
         else
         {
             Object ret;
