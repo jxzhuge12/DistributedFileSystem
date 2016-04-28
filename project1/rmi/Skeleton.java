@@ -178,10 +178,8 @@ public class Skeleton<T>
         if(!condition)
         {
             condition = true;
-            System.out.println(address);
             if(address == null) address = new InetSocketAddress(7000);
             
-            System.out.println(address);
             try
             {
                 serversocket = new ServerSocket(address.getPort());
@@ -194,7 +192,6 @@ public class Skeleton<T>
             listener.start();
         }
         else throw new RMIException("Listening socket has already created!");
-        System.out.println("after skeleton start");
     }
 
     /** Stops the skeleton server, if it is already running.
@@ -248,11 +245,6 @@ public class Skeleton<T>
         return address.getAddress();
     }
     
-
-    public boolean isRunning(){
-        return condition;
-    }
-
     private class SkeletonListen extends Thread
     {
         public void run()
@@ -279,7 +271,7 @@ public class Skeleton<T>
         }   
     }
     
-    private class SkeletonInstance extends Thread implements Serializable
+    private class SkeletonInstance extends Thread
     {
         private Socket socket;
         

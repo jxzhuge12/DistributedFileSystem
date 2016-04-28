@@ -5,7 +5,7 @@ import java.net.*;
 import java.io.*;
 import java.lang.reflect.*;
 
-public class InvocationRealization implements InvocationHandler, Serializable
+public class InvocationRealization implements InvocationHandler
 {
     public InetSocketAddress address;
     
@@ -43,10 +43,7 @@ public class InvocationRealization implements InvocationHandler, Serializable
             
             try
             {
-                // Socket socket = new Socket(address.getAddress(), address.getPort());
-                Socket socket = new Socket();
-                socket.connect(address);
-
+                Socket socket = new Socket(address.getAddress(), address.getPort());
                 ObjectOutputStream outStream = new ObjectOutputStream(socket.getOutputStream());
                 String methodString = method.getName();
                 Class<?>[] argTypes = method.getParameterTypes();
@@ -64,11 +61,10 @@ public class InvocationRealization implements InvocationHandler, Serializable
                 ObjectInputStream inStream = new ObjectInputStream(socket.getInputStream());
                 suc = (boolean)inStream.readObject();
                 ret = inStream.readObject();
-                socket.close();
             }
             catch(Throwable e)
             { 
-                throw new RMIException("error"+e); 
+                throw new RMIException("error"); 
             }
             
             if(suc) return ret;
