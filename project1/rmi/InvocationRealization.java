@@ -4,8 +4,9 @@ import test.*;
 import java.net.*;
 import java.io.*;
 import java.lang.reflect.*;
+import java.lang.reflect.Proxy;
 
-public class InvocationRealization implements InvocationHandler
+public class InvocationRealization implements InvocationHandler, Serializable
 {
     public InetSocketAddress address;
     
@@ -21,9 +22,10 @@ public class InvocationRealization implements InvocationHandler
     {
         if(method.getName().equals("equals"))
         {
-            if(args.length != 1) throw new TestFailed("error");
+            if(args.length != 1 || args[0] == null) return false;
             if(args[0] == null) return (Object) false;
-            InvocationRealization ih = (InvocationRealization) ((java.lang.reflect.Proxy) args[0]).getInvocationHandler(args[0]);
+            if(!Proxy.isProxyClass(args[0].getClass())) return false;
+            InvocationRealization ih = (InvocationRealization)Proxy.getInvocationHandler(args[0]);
             return (Object) (c.equals(ih.c) && address.getAddress().equals(ih.address.getAddress()) && address.getPort() == ih.address.getPort());
         }
         else if(method.getName().equals("hashCode"))
@@ -70,5 +72,5 @@ public class InvocationRealization implements InvocationHandler
             if(suc) return ret;
             else throw ((InvocationTargetException)ret).getTargetException();
         }
-    }
+    } 
 }

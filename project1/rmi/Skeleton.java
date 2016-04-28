@@ -78,7 +78,7 @@ public class Skeleton<T>
      */
     public Skeleton(Class<T> c, T server, InetSocketAddress address)
     {
-        if(c == null || server == null || address == null) throw new NullPointerException("parameters cannot be null");
+        if(c == null || server == null) throw new NullPointerException("parameters cannot be null");
         if(!c.isInterface()) throw new Error("c must be interface!");
         if(!isRemoteInterface(c)) throw new Error("c must be remote interface!");
         this.c = c;
@@ -260,6 +260,7 @@ public class Skeleton<T>
                         si.start();
                     }
                 }
+                this.stop();
                 stopped(null);
             }
             catch(Exception e){
@@ -268,10 +269,10 @@ public class Skeleton<T>
             catch(Throwable t){
                 stopped(t);
             }
-        }   
+        }
     }
     
-    private class SkeletonInstance extends Thread
+    private class SkeletonInstance extends Thread implements Serializable
     {
         private Socket socket;
         
@@ -302,6 +303,7 @@ public class Skeleton<T>
                         boolean suc = true;
                         
                         try{
+                            method.setAccessible(true);
                             ret = method.invoke(server, args);
                         }
                         catch(InvocationTargetException e)
@@ -313,12 +315,14 @@ public class Skeleton<T>
                         outStream.writeObject((Object)suc);
                         outStream.writeObject(ret);
                         outStream.flush();
+                        socket.close();
                         break;
                     }
                 }
             }
             catch(Throwable t)
             {
+                System.out.println(t);
                 service_error(new RMIException("error"));
             }
         }
