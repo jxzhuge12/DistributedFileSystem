@@ -269,8 +269,8 @@ public class Skeleton<T>
                         si.start();
                     }
                 }
-                this.stop();
-                stopped(null);
+                //this.stop();
+                //stopped(null);
             }
             catch(Exception e){
                 listen_error(e);
@@ -296,7 +296,12 @@ public class Skeleton<T>
             {
                 ObjectInputStream inStream = new ObjectInputStream(socket.getInputStream());
                 int methodStringhc = (int)inStream.readObject();
-                Method[] methods = server.getClass().getMethods();
+                Method[] methods = c.getMethods();
+                
+
+                Object ret = null;
+                boolean suc = false, found = false;
+                
                 for (Method method : methods)
                 {
                     String methodString = method.getName();
@@ -304,30 +309,26 @@ public class Skeleton<T>
                     for (Class<?> argType : argTypes) methodString += argType.getName();
                     if (methodString.hashCode() == methodStringhc)
                     {
+                        found = true;
                         int l = method.getParameterTypes().length;
                         Object[] args = new Object[l];
                         for (int i = 0; i < l; i++) args[i] = inStream.readObject();
-                        ObjectOutputStream outStream = new ObjectOutputStream(socket.getOutputStream());
-                        Object ret = null;
-                        boolean suc = true;
                         
                         try{
                             method.setAccessible(true);
                             ret = method.invoke(server, args);
+                            suc = true;
                         }
-                        catch(InvocationTargetException e)
-                        {
-                            ret = e;
-                            suc = false;
-                        }
-                        
-                        outStream.writeObject((Object)suc);
-                        outStream.writeObject(ret);
-                        outStream.flush();
-                        socket.close();
+                        catch(InvocationTargetException e) { ret = e; }
                         break;
                     }
                 }
+                if(!found) ret = new InvocationTargetException(new RMIException("Cannot find the method"));
+                ObjectOutputStream outStream = new ObjectOutputStream(socket.getOutputStream());
+                outStream.writeObject((Object)suc);
+                outStream.writeObject(ret);
+                outStream.flush();
+                socket.close();
             }
             catch(Throwable t)
             {

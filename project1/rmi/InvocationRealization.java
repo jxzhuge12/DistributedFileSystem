@@ -20,6 +20,7 @@ public class InvocationRealization implements InvocationHandler, Serializable
     
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable
     {
+        if(method.getName().equals("equals") && args.length == 1 && method.getParameterTypes()[0].getName() == "java.lang.Object")
         {
             if(args[0] == null) return false;
             if(args[0] == null) return (Object) false;
