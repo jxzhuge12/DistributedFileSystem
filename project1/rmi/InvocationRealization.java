@@ -23,7 +23,6 @@ public class InvocationRealization implements InvocationHandler, Serializable
         if(method.getName().equals("equals") && args.length == 1 && method.getParameterTypes()[0].getName() == "java.lang.Object")
         {
             if(args[0] == null) return false;
-            if(args[0] == null) return (Object) false;
             if(!Proxy.isProxyClass(args[0].getClass())) return false;
             InvocationRealization ih = (InvocationRealization)Proxy.getInvocationHandler(args[0]);
             return (Object) (c.equals(ih.c) && address.getAddress().equals(ih.address.getAddress()) && address.getPort() == ih.address.getPort());
