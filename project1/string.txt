@@ -1,5 +1,0 @@
-LINE 1
-line 2
-line 3
-LINE 4
-line 5
