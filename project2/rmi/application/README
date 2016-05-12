@@ -1,0 +1,13 @@
+This is an application based on rmi library.
+
+Server side:
+interface class: PingServer
+server class: PingPongServer
+
+Client side:
+client class: PingPongServer
+
+class: PingServerFactory
+    - used to generate remote object reference (for client)
+    - PingServer makePingServer()
+
