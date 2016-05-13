@@ -16,6 +16,9 @@ import naming.*;
  */
 public class StorageServer implements Storage, Command
 {
+    File root;
+    Skeleton<Storage> client_skeleton;
+    Skeleton<Command> command_skeleton;
     /** Creates a storage server, given a directory on the local filesystem, and
         ports to use for the client and command interfaces.
 
@@ -33,7 +36,30 @@ public class StorageServer implements Storage, Command
     */
     public StorageServer(File root, int client_port, int command_port)
     {
-        throw new UnsupportedOperationException("not implemented");
+        // throw new UnsupportedOperationException("not implemented");
+        if (root == null)
+        {
+            throw new NullPointerException("root directory is null");
+        }
+        this.root = root;
+        if (client_port > 0)
+        {
+            InetSocketAddress client_address = new InetSocketAddress(client_port);
+            client_skeleton = new Skeleton<Storage>(Storage.class, this, client_address);
+        }
+        else
+        {
+            client_skeleton = new Skeleton<Storage>(Storage.class, this);
+        }
+        if (command_port > 0)
+        {
+            InetSocketAddress command_address = new InetSocketAddress(command_port);
+            command_skeleton = new Skeleton<Command>(Command.class, this, command_address);
+        }
+        else
+        {
+            command_skeleton = new Skeleton<Command>(Command.class, this);
+        }
     }
 
     /** Creats a storage server, given a directory on the local filesystem.
@@ -49,7 +75,12 @@ public class StorageServer implements Storage, Command
      */
     public StorageServer(File root)
     {
-        throw new UnsupportedOperationException("not implemented");
+        // throw new UnsupportedOperationException("not implemented");
+        if (root == null)
+        {
+            throw new NullPointerException("root directory is null");
+        }
+        StorageServer(root, 0, 0);
     }
 
     /** Starts the storage server and registers it with the given naming
@@ -75,7 +106,34 @@ public class StorageServer implements Storage, Command
     public synchronized void start(String hostname, Registration naming_server)
         throws RMIException, UnknownHostException, FileNotFoundException
     {
-        throw new UnsupportedOperationException("not implemented");
+        // throw new UnsupportedOperationException("not implemented");
+        if (!root.exists() || root.isFile())
+        {
+            throw new FileNotFoundException("the root directory does not exist or is a file");
+        }
+        client_skeleton.start();
+        command_skeleton.start();
+        Storage client_stub = Stub.create(Storage.class, client_skeleton, hostname);
+        Command command_stub = Stub.create(Command.class, command_skeleton, hostname);
+        Path[] files = Path.list(root);
+        Path[] delete_files = naming_server.register(client_stub, command_stub, files);
+        for (int i = 0; i < delete_files.length; i++)
+        {
+            p.toFile(root).delete();
+            while (!p.isroot())
+            {
+                p = p.parent();
+                File temp_file = p.toFile(root);
+                if (temp_file.list().length == 0)
+                {
+                    temp_file.delete();
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
     }
 
     /** Stops the storage server.
@@ -85,7 +143,10 @@ public class StorageServer implements Storage, Command
      */
     public void stop()
     {
-        throw new UnsupportedOperationException("not implemented");
+        // throw new UnsupportedOperationException("not implemented");
+        client_skeleton.stop();
+        command_skeleton.stop();
+        stopped(null);
     }
 
     /** Called when the storage server has shut down.
