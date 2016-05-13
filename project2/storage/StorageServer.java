@@ -77,11 +77,7 @@ public class StorageServer implements Storage, Command
     public StorageServer(File root)
     {
         // throw new UnsupportedOperationException("not implemented");
-        if (root == null)
-        {
-            throw new NullPointerException("root directory is null");
-        }
-        StorageServer(root, 0, 0);
+        this(root, 0, 0);
     }
 
     /** Starts the storage server and registers it with the given naming
@@ -120,8 +116,9 @@ public class StorageServer implements Storage, Command
         Path[] delete_files = naming_server.register(client_stub, command_stub, files);
         for (int i = 0; i < delete_files.length; i++)
         {
+            Path p = delete_files[i];
             p.toFile(root).delete();
-            while (!p.isroot())
+            while (!p.isRoot())
             {
                 p = p.parent();
                 File temp_file = p.toFile(root);
@@ -165,13 +162,13 @@ public class StorageServer implements Storage, Command
     {
         // throw new UnsupportedOperationException("not implemented");
         File f = file.toFile(root);
-        if (f.exist() && f.isFile())
+        if (f.exists() && f.isFile())
         {
             return f.length();
         }
         else
         {
-            throw New FileNotFoundException("File can not be found by given path");
+            throw new FileNotFoundException("File can not be found by given path");
         }
     }
 
@@ -183,11 +180,11 @@ public class StorageServer implements Storage, Command
         File f = file.toFile(root);
         if (!f.exists() || f.isDirectory())
         {
-            throw new FileNotFoundException("File cannot be found or the path refers to a directory")
+            throw new FileNotFoundException("File cannot be found or the path refers to a directory");
         }
         if (length < 0 || offset < 0 || offset + length >= f.length())
         {
-            throw new IndexOutOfBoundsException("The sequence specified by offset and length is outside the bounds of the file, or if length is negative.")
+            throw new IndexOutOfBoundsException("The sequence specified by offset and length is outside the bounds of the file, or if length is negative.");
         }
         FileInputStream fis = null;
         byte[] read_byte = new byte[length];;
@@ -214,21 +211,20 @@ public class StorageServer implements Storage, Command
         throws FileNotFoundException, IOException
     {
         // throw new UnsupportedOperationException("not implemented");
-        File f = file.toPath()
         File f = file.toFile(root);
         if (!f.exists() || f.isDirectory())
         {
-            throw new FileNotFoundException("File cannot be found or the path refers to a directory")
+            throw new FileNotFoundException("File cannot be found or the path refers to a directory");
         }
         if (offset < 0 || offset + data.length >= f.length())
         {
-            throw new IndexOutOfBoundsException("The sequence specified by offset and length is outside the bounds of the file, or if length is negative.")
+            throw new IndexOutOfBoundsException("The sequence specified by offset and length is outside the bounds of the file, or if length is negative.");
         }
         FileOutputStream fos = null;
         try
         {
             fos = new FileOutputStream(f);
-            fos.write(data, offset, data.length);
+            fos.write(data, (int)offset, data.length);
         }catch(Exception e)
         {
             e.printStackTrace();
@@ -254,10 +250,18 @@ public class StorageServer implements Storage, Command
         File file_parent = path_parent.toFile(root);
         if (!file_parent.isDirectory())
         {
-            delete(file_parent);
+            delete(path_parent);
             file_parent.mkdirs();
         }
-        return file.toFile(root).createNewFile();
+        boolean success = false;
+        try
+        {
+            success = file.toFile(root).createNewFile();
+        }catch(IOException e)
+        {
+            e.printStackTrace();
+        }
+        return success;
     }
 
     @Override
@@ -283,8 +287,8 @@ public class StorageServer implements Storage, Command
     {
         if (dir.isDirectory())
         {
-            File[] files = dir.litFiles();
-            if (files != null)
+            File[] files = dir.listFiles();
+            for (int i = 0; i < files.length; i++)
             {
                 boolean success = deleteDir(files[i]);
                 if (!success)
@@ -311,10 +315,10 @@ public class StorageServer implements Storage, Command
         long offset = 0;
         while (offset < file_length)
         {
-            int length = Math.min(file_length - offset, Integer.MAX_VALUE);
+            int length = Math.min((int)(file_length - offset), Integer.MAX_VALUE);
             byte[] read_byte = server.read(file, offset, length);
             write(file, offset, read_byte);
-            offset += byte.length();
+            offset += read_byte.length;
         }
         return true;
     }
