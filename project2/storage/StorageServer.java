@@ -182,7 +182,7 @@ public class StorageServer implements Storage, Command
         {
             throw new FileNotFoundException("File cannot be found or the path refers to a directory");
         }
-        if (length < 0 || offset < 0 || offset + length >= f.length())
+        if (length < 0 || offset < 0 || offset + length > f.length())
         {
             throw new IndexOutOfBoundsException("The sequence specified by offset and length is outside the bounds of the file, or if length is negative.");
         }
@@ -216,25 +216,13 @@ public class StorageServer implements Storage, Command
         {
             throw new FileNotFoundException("File cannot be found or the path refers to a directory");
         }
-        if (offset < 0 || offset + data.length >= f.length())
+        if (offset < 0)
         {
             throw new IndexOutOfBoundsException("The sequence specified by offset and length is outside the bounds of the file, or if length is negative.");
         }
-        FileOutputStream fos = null;
-        try
-        {
-            fos = new FileOutputStream(f);
-            fos.write(data, (int)offset, data.length);
-        }catch(Exception e)
-        {
-            e.printStackTrace();
-        }finally
-        {
-            if (fos != null)
-            {
-                fos.close();
-            }
-        }
+        RandomAccessFile writer = new RandomAccessFile(f,"rw");
+        writer.seek(offset);
+        writer.write(data);
     }
 
     // The following methods are documented in Command.java.
@@ -310,7 +298,7 @@ public class StorageServer implements Storage, Command
         {
             f.delete();
         }
-        f.createNewFile();
+        create(file);
         long file_length = server.size(file);
         long offset = 0;
         while (offset < file_length)
