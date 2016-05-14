@@ -2,7 +2,8 @@ package storage;
 
 import java.io.*;
 import java.net.*;
-import java.lang.*;
+import java.util.*;
+import java.nio.file.Files;
 
 import common.*;
 import rmi.*;
@@ -17,9 +18,9 @@ import naming.*;
  */
 public class StorageServer implements Storage, Command
 {
-    File root;
-    Skeleton<Storage> client_skeleton;
-    Skeleton<Command> command_skeleton;
+    private Skeleton<Command> command;
+    private Skeleton<Storage> storage;
+    private File root;
     /** Creates a storage server, given a directory on the local filesystem, and
         ports to use for the client and command interfaces.
 
@@ -37,30 +38,12 @@ public class StorageServer implements Storage, Command
     */
     public StorageServer(File root, int client_port, int command_port)
     {
-        // throw new UnsupportedOperationException("not implemented");
-        if (root == null)
-        {
-            throw new NullPointerException("root directory is null");
-        }
+        if(root == null) throw new NullPointerException("root is null");
+        if(command_port != 0) command = new Skeleton(Command.class, this, new InetSocketAddress(command_port));
+        else command = new Skeleton(Command.class, this);
+        if(client_port != 0) storage = new Skeleton(Storage.class, this, new InetSocketAddress(client_port));
+        else storage = new Skeleton(Storage.class, this);
         this.root = root;
-        if (client_port > 0)
-        {
-            InetSocketAddress client_address = new InetSocketAddress(client_port);
-            client_skeleton = new Skeleton<Storage>(Storage.class, this, client_address);
-        }
-        else
-        {
-            client_skeleton = new Skeleton<Storage>(Storage.class, this);
-        }
-        if (command_port > 0)
-        {
-            InetSocketAddress command_address = new InetSocketAddress(command_port);
-            command_skeleton = new Skeleton<Command>(Command.class, this, command_address);
-        }
-        else
-        {
-            command_skeleton = new Skeleton<Command>(Command.class, this);
-        }
     }
 
     /** Creats a storage server, given a directory on the local filesystem.
@@ -76,7 +59,6 @@ public class StorageServer implements Storage, Command
      */
     public StorageServer(File root)
     {
-        // throw new UnsupportedOperationException("not implemented");
         this(root, 0, 0);
     }
 
@@ -103,37 +85,23 @@ public class StorageServer implements Storage, Command
     public synchronized void start(String hostname, Registration naming_server)
         throws RMIException, UnknownHostException, FileNotFoundException
     {
-        // throw new UnsupportedOperationException("not implemented");
-        if (!root.exists() || root.isFile())
-        {
-            throw new FileNotFoundException("the root directory does not exist or is a file");
-        }
-        client_skeleton.start();
-        command_skeleton.start();
-        Storage client_stub = Stub.create(Storage.class, client_skeleton, hostname);
-        Command command_stub = Stub.create(Command.class, command_skeleton, hostname);
-        Path[] files = Path.list(root);
-        Path[] delete_files = naming_server.register(client_stub, command_stub, files);
-        for (int i = 0; i < delete_files.length; i++)
-        {
-            Path p = delete_files[i];
-            p.toFile(root).delete();
-            while (!p.isRoot())
-            {
-                p = p.parent();
-                File temp_file = p.toFile(root);
-                if (temp_file.list().length == 0)
-                {
-                    temp_file.delete();
-                }
-                else
-                {
-                    break;
-                }
-            }
-        }
+        if (!root.exists() || root.isFile()) throw new FileNotFoundException("cannot find");
+        command.start();
+        storage.start();
+        Command command_stub = Stub.create(Command.class, command, hostname);
+        Storage storage_stub = Stub.create(Storage.class, storage, hostname);
+        Path[] del = naming_server.register(storage_stub, command_stub, Path.list(root));
+        for(int i = 0; i < del.length; i++) del[i].toFile(root).delete();
+        prune(root);
     }
 
+    private void prune(File f){
+        if(!f.isDirectory()) return;
+        File[] files = f.listFiles();
+        for(int i = 0; i < files.length; i++) prune(files[i]);
+        if(f.listFiles().length == 0) f.delete();
+    }
+    
     /** Stops the storage server.
 
         <p>
@@ -141,9 +109,8 @@ public class StorageServer implements Storage, Command
      */
     public void stop()
     {
-        // throw new UnsupportedOperationException("not implemented");
-        client_skeleton.stop();
-        command_skeleton.stop();
+        command.stop();
+        storage.stop();
         stopped(null);
     }
 
@@ -160,67 +127,29 @@ public class StorageServer implements Storage, Command
     @Override
     public synchronized long size(Path file) throws FileNotFoundException
     {
-        // throw new UnsupportedOperationException("not implemented");
         File f = file.toFile(root);
-        if (f.exists() && f.isFile())
-        {
-            return f.length();
-        }
-        else
-        {
-            throw new FileNotFoundException("File can not be found by given path");
-        }
+        if(file.isRoot() || !f.exists() || f.isDirectory()) throw new FileNotFoundException("cannot find");
+        return f.length();
     }
 
     @Override
     public synchronized byte[] read(Path file, long offset, int length)
         throws FileNotFoundException, IOException
     {
-        // throw new UnsupportedOperationException("not implemented");
         File f = file.toFile(root);
-        if (!f.exists() || f.isDirectory())
-        {
-            throw new FileNotFoundException("File cannot be found or the path refers to a directory");
-        }
-        if (length < 0 || offset < 0 || offset + length > f.length())
-        {
-            throw new IndexOutOfBoundsException("The sequence specified by offset and length is outside the bounds of the file, or if length is negative.");
-        }
-        FileInputStream fis = null;
-        byte[] read_byte = new byte[length];;
-        try
-        {
-            fis = new FileInputStream(f);
-            fis.read(read_byte, (int)offset, length);
-            return read_byte;
-        }catch(Exception e)
-        {
-            e.printStackTrace();
-        }finally
-        {
-            if (fis != null)
-            {
-                fis.close();
-            }
-            return read_byte;
-        }
+        if(file.isRoot() || !f.exists() || f.isDirectory()) throw new FileNotFoundException("cannot find");
+        if(length < 0 || offset < 0 || offset + length > f.length()) throw new IndexOutOfBoundsException("out of bound");
+        return Arrays.copyOfRange(Files.readAllBytes(f.toPath()), (int)offset, length);
     }
 
     @Override
     public synchronized void write(Path file, long offset, byte[] data)
         throws FileNotFoundException, IOException
     {
-        // throw new UnsupportedOperationException("not implemented");
         File f = file.toFile(root);
-        if (!f.exists() || f.isDirectory())
-        {
-            throw new FileNotFoundException("File cannot be found or the path refers to a directory");
-        }
-        if (offset < 0)
-        {
-            throw new IndexOutOfBoundsException("The sequence specified by offset and length is outside the bounds of the file, or if length is negative.");
-        }
-        RandomAccessFile writer = new RandomAccessFile(f,"rw");
+        if(file.isRoot() || !f.exists() || f.isDirectory()) throw new FileNotFoundException("cannot find");
+        if(offset < 0) throw new IndexOutOfBoundsException("out of bound");
+        RandomAccessFile writer = new RandomAccessFile(f, "rw");
         writer.seek(offset);
         writer.write(data);
     }
@@ -229,85 +158,40 @@ public class StorageServer implements Storage, Command
     @Override
     public synchronized boolean create(Path file)
     {
-        // throw new UnsupportedOperationException("not implemented");
-        if (file.isRoot())
-        {
-            return false;
-        }
-        Path path_parent = file.parent();
-        File file_parent = path_parent.toFile(root);
-        if (!file_parent.isDirectory())
-        {
-            delete(path_parent);
-            file_parent.mkdirs();
-        }
-        boolean success = false;
+        if (file.isRoot()) return false;
+        File f = file.parent().toFile(root);
+        if (f.exists() && !f.isDirectory()) return false;
+        if (!f.exists()) f.mkdirs();
         try
         {
-            success = file.toFile(root).createNewFile();
-        }catch(IOException e)
-        {
-            e.printStackTrace();
+            return file.toFile(root).createNewFile();
         }
-        return success;
+        catch(IOException e) { stopped(e); }
+        return false;
     }
 
     @Override
     public synchronized boolean delete(Path path)
     {
-        // throw new UnsupportedOperationException("not implemented");
-        if (path.isRoot())
-        {
-            return false;
-        }
-        File file = path.toFile(root);
-        if (file.isFile())
-        {
-            return file.delete();
-        }
-        else
-        {
-            return deleteDir(file);
-        }
-    }
-
-    public synchronized boolean deleteDir(File dir)
-    {
-        if (dir.isDirectory())
-        {
-            File[] files = dir.listFiles();
-            for (int i = 0; i < files.length; i++)
-            {
-                boolean success = deleteDir(files[i]);
-                if (!success)
-                {
-                    return false;
-                }
-            }
-        }
-        return dir.delete();
+        if(path.isRoot()) return false;
+        File f = path.toFile(root);
+        if (!f.exists()) return false;
+        if (!f.isDirectory()) return f.delete();
+        File[] files = f.listFiles();
+        for(int i = 0; i < files.length; i++) delete(new Path(files[i].getPath().substring(root.toString().length())));
+        f.delete();
+        return true;
     }
 
     @Override
     public synchronized boolean copy(Path file, Storage server)
         throws RMIException, FileNotFoundException, IOException
     {
-        // throw new UnsupportedOperationException("not implemented");
+        byte[] filedata = (byte[])server.read(file, 0, (int)server.size(file));
+        delete(file);
+        if (!create(file)) return false;
         File f = file.toFile(root);
-        if (f.exists())
-        {
-            f.delete();
-        }
-        create(file);
-        long file_length = server.size(file);
-        long offset = 0;
-        while (offset < file_length)
-        {
-            int length = Math.min((int)(file_length - offset), Integer.MAX_VALUE);
-            byte[] read_byte = server.read(file, offset, length);
-            write(file, offset, read_byte);
-            offset += read_byte.length;
-        }
+        write(file, 0, filedata);
         return true;
     }
 }

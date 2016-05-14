@@ -3,6 +3,7 @@ package naming;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.Semaphore;
 
 import rmi.*;
 import common.*;
@@ -33,6 +34,129 @@ import storage.*;
  */
 public class NamingServer implements Service, Registration
 {
+    private Node root;
+    private HashMap<Storage, Command> storageServers;
+    
+    private Skeleton<Service> service;
+    private Skeleton<Registration> registration;
+    
+    private class Node{
+        public Node parent;
+        public String name;
+        public String path;
+        public ArrayList<Node> children;
+        public boolean isDirectory;
+        public Storage storage;
+        private int count;
+        private boolean exclusive;
+        private Semaphore run, mutex;
+        private LinkedList<Boolean> isExclusive;
+        
+        public Node(Node parent, boolean isDirectory, String name, Storage storage){
+            this.parent = parent;
+            this.isDirectory = isDirectory;
+            this.name = name;
+            this.storage = storage;
+            children = new ArrayList<Node>();
+            path = parent == null ? "" : parent.path + "/" + name;
+            count = 0;
+            exclusive = false;
+            isExclusive = new LinkedList<Boolean>();
+            run = new Semaphore(1);
+            mutex = new Semaphore(1);
+        }
+        
+        public void lock(boolean exclusive) throws InterruptedException
+        {
+            try
+            {
+                mutex.acquire();
+                if(count == 0){
+                    run.acquire();
+                    count++;
+                    this.exclusive = exclusive;
+                }
+                else if(!this.exclusive && !exclusive && isExclusive.isEmpty()) count++;
+                else {
+                    isExclusive.add(exclusive);
+                    mutex.release();
+                    run.acquire();
+                    mutex.acquire();
+                    count++;
+                    this.exclusive = exclusive;
+                    isExclusive.remove();
+                    if(!exclusive && !isExclusive.isEmpty() && isExclusive.peek() == false) run.release();
+                }
+
+                mutex.release();
+            }
+            catch(InterruptedException e) { stopped(e); }
+        }
+        
+        public void unlock(boolean exclusive)
+        {
+            try
+            {
+                mutex.acquire();
+                count--;
+                if (count == 0) run.release();
+                mutex.release(); 
+            }
+            catch(InterruptedException e) { stopped(e); }
+        }
+        
+        public Node find(String child){
+            if(!isDirectory) return null;
+            for(int i = 0; i < children.size(); i++)
+                if(children.get(i).name.equals(child)) return children.get(i);
+            return null;
+        }
+        
+        public Node add(String child){
+            if(!isDirectory) return null;
+            Node n = find(child);
+            if(n == null) {
+                n = new Node(this, true, child, null);
+                children.add(n);
+            }
+            return n;
+        }
+        
+        public boolean delete(Node n){
+            if(!isDirectory) return false;
+            return children.remove(n);
+        }
+    }
+    
+    private Node add(Path path, Storage storage){
+        Node n = root;
+        for(int i = 0; i < path.pathArray.size(); i++)
+            n = n.add(path.pathArray.get(i));
+        if(storage != null){
+            n.isDirectory = false;
+            n.storage = storage;
+        }
+        return n;
+    }
+    
+    private boolean exist(Path path){
+        Node n = root;
+        for(int i = 0; i < path.pathArray.size(); i++){
+            n = n.find(path.pathArray.get(i));
+            if(n == null) break;
+        }
+        return n != null;
+    }
+   
+    private Node find(Path path){
+        Node n = root;
+        for(int i = 0; i < path.pathArray.size(); i++){
+            n = n.find(path.pathArray.get(i));
+            if(n == null) break;
+        }
+        return n;
+    }
+    
     /** Creates the naming server object.
 
         <p>
@@ -40,7 +164,10 @@ public class NamingServer implements Service, Registration
      */
     public NamingServer()
     {
-        throw new UnsupportedOperationException("not implemented");
+        root = new Node(null, true, "", null);
+        storageServers = new HashMap<Storage, Command>();
+        service = new Skeleton(Service.class, this, new InetSocketAddress(NamingStubs.SERVICE_PORT));
+        registration = new Skeleton(Registration.class, this, new InetSocketAddress(NamingStubs.REGISTRATION_PORT));
     }
 
     /** Starts the naming server.
@@ -56,7 +183,8 @@ public class NamingServer implements Service, Registration
      */
     public synchronized void start() throws RMIException
     {
-        throw new UnsupportedOperationException("not implemented");
+        service.start();
+        registration.start();
     }
 
     /** Stops the naming server.
@@ -70,7 +198,9 @@ public class NamingServer implements Service, Registration
      */
     public void stop()
     {
-        throw new UnsupportedOperationException("not implemented");
+        service.stop();
+        registration.stop();
+        stopped(null);
     }
 
     /** Indicates that the server has completely shut down.
@@ -90,50 +220,143 @@ public class NamingServer implements Service, Registration
     @Override
     public void lock(Path path, boolean exclusive) throws FileNotFoundException
     {
-        throw new UnsupportedOperationException("not implemented");
+        if(!exist(path)) throw new FileNotFoundException("cannot find");
+        try{
+            Node n = root;
+            if(path.isRoot()) {
+                n.lock(exclusive);
+                return;
+            }
+            n.lock(false);
+            for(int i = 0; i < path.pathArray.size() - 1; i++){
+                n = n.find(path.pathArray.get(i));
+                n.lock(false);
+            }
+            n = n.find(path.pathArray.get(path.pathArray.size() - 1));
+            n.lock(exclusive);
+        }
+        catch(InterruptedException e){ stopped(e); }
     }
 
     @Override
     public void unlock(Path path, boolean exclusive)
     {
-        throw new UnsupportedOperationException("not implemented");
+        Node n = find(path);
+        if(n == null) throw new IllegalArgumentException("cannot find");
+        n.unlock(exclusive);
+        while(n != root){
+            n = n.parent;
+            n.unlock(false);
+        }
     }
 
     @Override
     public boolean isDirectory(Path path) throws FileNotFoundException
     {
-        throw new UnsupportedOperationException("not implemented");
+        lock(path, false);
+        if (path == null) throw new NullPointerException("null");
+        Node n = find(path);
+        if (n == null) throw new FileNotFoundException("directory");
+        unlock(path, false);
+        return n.isDirectory;
     }
 
     @Override
     public String[] list(Path directory) throws FileNotFoundException
     {
-        throw new UnsupportedOperationException("not implemented");
+        lock(directory, false);
+        if (directory == null) throw new NullPointerException("null");
+        Node n = find(directory);
+        if (n == null) throw new FileNotFoundException("cannot find");
+        if (!n.isDirectory) throw new FileNotFoundException("file");
+        String[] r = new String[n.children.size()];
+        for(int i = 0; i < n.children.size(); i++) r[i] = n.children.get(i).name;
+        unlock(directory, false);
+        return r;
     }
 
     @Override
     public boolean createFile(Path file)
         throws RMIException, FileNotFoundException
     {
-        throw new UnsupportedOperationException("not implemented");
+        if (storageServers.isEmpty()) throw new IllegalStateException("no storage");
+        if (file == null) throw new NullPointerException("null");
+        if (file.isRoot()) return false;
+        Path parent = file.parent();
+        lock(parent, true);
+        Node n = find(parent);
+        if(n == null || !n.isDirectory) {
+            unlock(parent, true);
+            throw new FileNotFoundException("null");
+        }
+        if (find(file) != null) {
+            unlock(parent, true);
+            return false;
+        }
+        Random rand = new Random();
+        int p = rand.nextInt(storageServers.size());
+        Storage[] storages = new Storage[storageServers.size()];
+        storageServers.keySet().toArray(storages);
+        storageServers.get(storages[p]).create(file);
+        if(add(file, storages[p]) == null) {
+            unlock(parent, true);
+            return false;
+        }
+        else {
+            unlock(parent, true);
+            return true;
+        }
     }
 
     @Override
     public boolean createDirectory(Path directory) throws FileNotFoundException
     {
-        throw new UnsupportedOperationException("not implemented");
+        if (directory == null) throw new NullPointerException("null");
+        if (directory.isRoot()) return false;
+        Path parent = directory.parent();
+        lock(parent, true);
+        Node n = find(parent);
+        if(n == null || !n.isDirectory) {
+            unlock(parent, true);
+            throw new FileNotFoundException("null");
+        }
+        if(find(directory) != null || add(directory, null) == null) {
+            unlock(parent, true);
+            return false;
+        }
+        else {
+            unlock(parent, true);
+            return true;
+        }
     }
 
     @Override
     public boolean delete(Path path) throws FileNotFoundException
     {
-        throw new UnsupportedOperationException("not implemented");
+        if (path == null) throw new NullPointerException("null");
+        lock(path, true);
+        Node n = find(path);
+        try
+        {
+            storageServers.get(n.storage).delete(path);
+        }
+        catch(RMIException e) { stopped(e); }
+        boolean result = n.parent.delete(n);
+        unlock(path, true);
+        return result;
     }
 
     @Override
     public Storage getStorage(Path file) throws FileNotFoundException
     {
-        throw new UnsupportedOperationException("not implemented");
+        if (file == null) throw new NullPointerException("null");
+        lock(file, false);
+        if (!exist(file)) throw new FileNotFoundException("not found");
+        Node n = find(file);
+        if (n.isDirectory) throw new FileNotFoundException("directory");
+        Storage storage = n.storage;
+        unlock(file, false);
+        return storage;
     }
 
     // The method register is documented in Registration.java.
@@ -141,6 +364,22 @@ public class NamingServer implements Service, Registration
     public Path[] register(Storage client_stub, Command command_stub,
                            Path[] files)
     {
-        throw new UnsupportedOperationException("not implemented");
+        if(client_stub == null || command_stub == null || files == null) throw new NullPointerException("null pointer");
+        if (storageServers.containsKey(client_stub)) throw new IllegalStateException("already registered");
+        Path r = new Path();
+        try{
+            lock(r, true);
+        }
+        catch(FileNotFoundException e) { stopped(e); }
+        storageServers.put(client_stub, command_stub);
+        ArrayList<Path> toDel = new ArrayList<Path>();
+        for(int i = 0; i < files.length; i++){
+            if(files[i].toString() == "/") continue;
+            if(exist(files[i])) toDel.add(files[i]);
+            else add(files[i], client_stub);
+        }
+        unlock(r, true);
+        Path[] result = new Path[toDel.size()];
+        return toDel.toArray(result);
     }
 }
