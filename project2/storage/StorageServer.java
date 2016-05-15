@@ -39,10 +39,10 @@ public class StorageServer implements Storage, Command
     public StorageServer(File root, int client_port, int command_port)
     {
         if(root == null) throw new NullPointerException("root is null");
-        if(command_port != 0) command = new Skeleton(Command.class, this, new InetSocketAddress(command_port));
-        else command = new Skeleton(Command.class, this);
-        if(client_port != 0) storage = new Skeleton(Storage.class, this, new InetSocketAddress(client_port));
-        else storage = new Skeleton(Storage.class, this);
+        if(command_port == 0) command = new Skeleton(Command.class, this);
+        else command = new Skeleton(Command.class, this, new InetSocketAddress(command_port));
+        if(client_port == 0) storage = new Skeleton(Storage.class, this);
+        else storage = new Skeleton(Storage.class, this, new InetSocketAddress(client_port));
         this.root = root;
     }
 

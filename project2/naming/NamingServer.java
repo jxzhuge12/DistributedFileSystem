@@ -3,7 +3,7 @@ package naming;
 import java.io.*;
 import java.net.*;
 import java.util.*;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.*;
 
 import rmi.*;
 import common.*;
@@ -142,9 +142,9 @@ public class NamingServer implements Service, Registration
         
         private void toRead(){
             read++;
-            Random rand = new Random();
             if(!isDirectory && read >= 20) {
                 read -= 20;
+                Random rand = new Random();
                 if(storageServers.size() <= this.storages.size()) return;
                 Storage[] storages = new Storage[storageServers.size()];
                 storageServers.keySet().toArray(storages);
@@ -172,9 +172,9 @@ public class NamingServer implements Service, Registration
                 }
                 catch(Throwable e){ stopped(e); }
             }
-            Storage temp = this.storages.get(p);
+            Storage t = this.storages.get(p);
             this.storages.clear();
-            this.storages.add(temp);
+            this.storages.add(t);
         }
     }
     
@@ -335,27 +335,22 @@ public class NamingServer implements Service, Registration
         Path parent = file.parent();
         lock(parent, true);
         Node n = find(parent);
+        boolean result = true;
         if(n == null || !n.isDirectory) {
             unlock(parent, true);
             throw new FileNotFoundException("null");
         }
-        if (find(file) != null) {
-            unlock(parent, true);
-            return false;
-        }
-        Random rand = new Random();
-        int p = rand.nextInt(storageServers.size());
-        Storage[] storages = new Storage[storageServers.size()];
-        storageServers.keySet().toArray(storages);
-        storageServers.get(storages[p]).create(file);
-        if(add(file, storages[p]) == null) {
-            unlock(parent, true);
-            return false;
-        }
+        else if (find(file) != null) result = false;
         else {
-            unlock(parent, true);
-            return true;
+            Random rand = new Random();
+            int p = rand.nextInt(storageServers.size());
+            Storage[] storages = new Storage[storageServers.size()];
+            storageServers.keySet().toArray(storages);
+            storageServers.get(storages[p]).create(file);
+            if(add(file, storages[p]) == null) result = false;
         }
+        unlock(parent, true);
+        return result;
     }
 
     @Override
@@ -370,14 +365,10 @@ public class NamingServer implements Service, Registration
             unlock(parent, true);
             throw new FileNotFoundException("null");
         }
-        if(find(directory) != null || add(directory, null) == null) {
-            unlock(parent, true);
-            return false;
-        }
-        else {
-            unlock(parent, true);
-            return true;
-        }
+        boolean result = true;
+        if(find(directory) != null || add(directory, null) == null) result = false;
+        unlock(parent, true);
+        return result;
     }
 
     @Override
