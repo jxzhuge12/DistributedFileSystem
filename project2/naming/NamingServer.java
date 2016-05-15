@@ -46,8 +46,8 @@ public class NamingServer implements Service, Registration
         public String path;
         public ArrayList<Node> children;
         public boolean isDirectory;
-        public Storage storage;
-        private int count;
+        public ArrayList<Storage> storages;
+        private int read, count;
         private boolean exclusive;
         private Semaphore run, mutex;
         private LinkedList<Boolean> isExclusive;
@@ -56,9 +56,11 @@ public class NamingServer implements Service, Registration
             this.parent = parent;
             this.isDirectory = isDirectory;
             this.name = name;
-            this.storage = storage;
+            storages = new ArrayList<Storage>();
+            if (storage != null) storages.add(storage);
             children = new ArrayList<Node>();
             path = parent == null ? "" : parent.path + "/" + name;
+            read = 0;
             count = 0;
             exclusive = false;
             isExclusive = new LinkedList<Boolean>();
@@ -87,10 +89,11 @@ public class NamingServer implements Service, Registration
                     isExclusive.remove();
                     if(!exclusive && !isExclusive.isEmpty() && isExclusive.peek() == false) run.release();
                 }
-
                 mutex.release();
             }
             catch(InterruptedException e) { stopped(e); }
+            if (exclusive && storages.size() > 1) toDelete();
+            else toRead();
         }
         
         public void unlock(boolean exclusive)
@@ -122,9 +125,56 @@ public class NamingServer implements Service, Registration
             return n;
         }
         
-        public boolean delete(Node n){
-            if(!isDirectory) return false;
+        public boolean delete(Node n){ 
+            for(int i = 0; i < n.children.size(); i++) {
+                Node child = n.children.get(i);
+                if(child.isDirectory) delete(child);
+                for(int j = 0; j < child.storages.size(); j++)
+                    if(!n.storages.contains(child.storages.get(j))) n.storages.add(child.storages.get(j));
+            }
+            try{
+                for(int i = 0; i < n.storages.size(); i++) 
+                    storageServers.get(n.storages.get(i)).delete(new Path(n.path)); 
+            }
+            catch(RMIException e){ stopped(e); }
             return children.remove(n);
+        }
+        
+        private void toRead(){
+            read++;
+            Random rand = new Random();
+            if(!isDirectory && read >= 20) {
+                read -= 20;
+                if(storageServers.size() <= this.storages.size()) return;
+                Storage[] storages = new Storage[storageServers.size()];
+                storageServers.keySet().toArray(storages);
+                while(true){
+                    int p = rand.nextInt(storages.length);
+                    if(!this.storages.contains(storages[p])){
+                        this.storages.add(storages[p]);
+                        try{
+                            if (storageServers.get(storages[p]).copy(new Path(path), this.storages.get(0))) break;
+                        }
+                        catch(Throwable e){ stopped(e); }
+                    }
+                }
+            }
+        }
+        
+        private void toDelete(){
+            read = 0;
+            Random rand = new Random();
+            int p = rand.nextInt(this.storages.size());
+            for(int i = 0; i < this.storages.size(); i++){
+                if(i == p) continue;
+                try{
+                    storageServers.get(this.storages.get(i)).delete(new Path(path));
+                }
+                catch(Throwable e){ stopped(e); }
+            }
+            Storage temp = this.storages.get(p);
+            this.storages.clear();
+            this.storages.add(temp);
         }
     }
     
@@ -134,7 +184,7 @@ public class NamingServer implements Service, Registration
             n = n.add(path.pathArray.get(i));
         if(storage != null){
             n.isDirectory = false;
-            n.storage = storage;
+            n.storages.add(storage);
         }
         return n;
     }
@@ -336,13 +386,8 @@ public class NamingServer implements Service, Registration
         if (path == null) throw new NullPointerException("null");
         lock(path, true);
         Node n = find(path);
-        try
-        {
-            storageServers.get(n.storage).delete(path);
-        }
-        catch(RMIException e) { stopped(e); }
         boolean result = n.parent.delete(n);
-        unlock(path, true);
+        unlock(path.parent(), true);
         return result;
     }
 
@@ -354,7 +399,8 @@ public class NamingServer implements Service, Registration
         if (!exist(file)) throw new FileNotFoundException("not found");
         Node n = find(file);
         if (n.isDirectory) throw new FileNotFoundException("directory");
-        Storage storage = n.storage;
+        Random rand = new Random();
+        Storage storage = n.storages.get(rand.nextInt(n.storages.size()));
         unlock(file, false);
         return storage;
     }
@@ -364,11 +410,10 @@ public class NamingServer implements Service, Registration
     public Path[] register(Storage client_stub, Command command_stub,
                            Path[] files)
     {
-        if(client_stub == null || command_stub == null || files == null) throw new NullPointerException("null pointer");
+        if (client_stub == null || command_stub == null || files == null) throw new NullPointerException("null pointer");
         if (storageServers.containsKey(client_stub)) throw new IllegalStateException("already registered");
-        Path r = new Path();
         try{
-            lock(r, true);
+            lock(new Path(), true);
         }
         catch(FileNotFoundException e) { stopped(e); }
         storageServers.put(client_stub, command_stub);
@@ -378,7 +423,7 @@ public class NamingServer implements Service, Registration
             if(exist(files[i])) toDel.add(files[i]);
             else add(files[i], client_stub);
         }
-        unlock(r, true);
+        unlock(new Path(), true);
         Path[] result = new Path[toDel.size()];
         return toDel.toArray(result);
     }
