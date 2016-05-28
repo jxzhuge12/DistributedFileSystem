@@ -34,8 +34,11 @@ fi
 
 
 if [[ $2 == "run" ]]; then
+  mkdir input
+  echo "Hello Docker dfsa" > input/file2.txt
+  echo "Hello Hadoop dfsb" > input/file1.txt
   $HADOOP_PREFIX/bin/hadoop fs -mkdir -p input
-  $HADOOP_PREFIX/bin/hadoop fs -put /usr/local/hadoop/etc/hadoop/* input
+  $HADOOP_PREFIX/bin/hadoop fs -put ./input/* input
   echo "start mapreduce"
   $HADOOP_PREFIX/bin/hadoop jar $HADOOP_PREFIX/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.0.jar grep input output 'dfs[a-z.]+'
   echo "start print"
