@@ -53,5 +53,5 @@ docker exec master_host bash -c "/etc/bootstrap.sh -bash wordcount"
 # run bigram
 docker exec master_host bash -c "/etc/bootstrap.sh -bash bigram"
 
-#docker stop master_host slave1_host slave2_host slave3_host slave4_host
-#docker rm master_host slave1_host slave2_host slave3_host slave4_host
+docker stop master_host slave1_host slave2_host slave3_host slave4_host
+docker rm master_host slave1_host slave2_host slave3_host slave4_host
